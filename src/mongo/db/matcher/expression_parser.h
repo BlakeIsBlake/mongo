@@ -234,7 +234,7 @@ private:
 
     StatusWithMatchExpression _parseComparison(
         const char* name,
-        ComparisonMatchExpression* cmp,
+        std::unique_ptr<ComparisonMatchExpression> cmp,
         const BSONElement& e,
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         AllowedFeatureSet allowedFeatures);

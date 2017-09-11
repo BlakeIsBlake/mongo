@@ -41,7 +41,10 @@ namespace mongo {
  */
 class PathMatchExpression : public MatchExpression {
 public:
-    PathMatchExpression(MatchType matchType) : MatchExpression(matchType) {}
+    explicit PathMatchExpression(MatchType matchType, StringData path)
+        : MatchExpression(matchType), _path(path) {
+        _elementPath.init(_path);
+    }
 
     virtual ~PathMatchExpression() {}
 
@@ -74,15 +77,13 @@ public:
         return _path;
     }
 
-    Status setPath(StringData path) {
+    void setPath(StringData path) {
         _path = path;
-        auto status = _elementPath.init(_path);
-        if (!status.isOK()) {
-            return status;
-        }
+        _elementPath.init(_path);
+    }
 
+    void setTraverseLeafArray() {
         _elementPath.setTraverseLeafArray(shouldExpandLeafArray());
-        return Status::OK();
     }
 
 protected:
