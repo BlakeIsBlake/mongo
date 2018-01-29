@@ -32,7 +32,7 @@
 #include <string>
 
 #include "mongo/db/jsobj.h"
-#include "mongo/db/keys_collection_cache_reader_and_updater.h"
+#include "mongo/db/key_generator.h"
 #include "mongo/db/keys_collection_client_sharded.h"
 #include "mongo/db/keys_collection_document.h"
 #include "mongo/db/logical_clock.h"
@@ -48,7 +48,7 @@
 
 namespace mongo {
 
-class CacheUpdaterTest : public ConfigServerTestFixture {
+class KeyGeneratorTest : public ConfigServerTestFixture {
 protected:
     void setUp() override {
         ConfigServerTestFixture::setUp();
@@ -73,14 +73,14 @@ private:
     std::unique_ptr<KeysCollectionClient> _catalogClient;
 };
 
-TEST_F(CacheUpdaterTest, ShouldCreate2KeysFromEmpty) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldCreate2KeysFromEmpty) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     const LogicalTime currentTime(LogicalTime(Timestamp(100, 2)));
     LogicalClock::get(operationContext())->setClusterTimeFromTrustedSource(currentTime);
 
     {
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_OK(keyStatus.getStatus());
 
         const auto key = keyStatus.getValue();
@@ -106,20 +106,20 @@ TEST_F(CacheUpdaterTest, ShouldCreate2KeysFromEmpty) {
     ASSERT_NE(key1.getKey(), key2.getKey());
 }
 
-TEST_F(CacheUpdaterTest, ShouldPropagateWriteError) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldPropagateWriteError) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     const LogicalTime currentTime(LogicalTime(Timestamp(100, 2)));
     LogicalClock::get(operationContext())->setClusterTimeFromTrustedSource(currentTime);
 
     FailPointEnableBlock failWriteBlock("failCollectionInserts");
 
-    auto keyStatus = updater.refresh(operationContext());
+    auto keyStatus = generator.refresh(operationContext());
     ASSERT_EQ(ErrorCodes::FailPointEnabled, keyStatus.getStatus());
 }
 
-TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfOnlyOneKeyExists) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldCreateAnotherKeyIfOnlyOneKeyExists) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     LogicalClock::get(operationContext())
         ->setClusterTimeFromTrustedSource(LogicalTime(Timestamp(100, 2)));
@@ -143,7 +143,7 @@ TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfOnlyOneKeyExists) {
     auto currentTime = LogicalClock::get(operationContext())->getClusterTime();
 
     {
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_OK(keyStatus.getStatus());
 
         const auto key = keyStatus.getValue();
@@ -172,8 +172,8 @@ TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfOnlyOneKeyExists) {
     }
 }
 
-TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfNoValidKeyAfterCurrent) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldCreateAnotherKeyIfNoValidKeyAfterCurrent) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     LogicalClock::get(operationContext())
         ->setClusterTimeFromTrustedSource(LogicalTime(Timestamp(108, 2)));
@@ -207,7 +207,7 @@ TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfNoValidKeyAfterCurrent) {
     auto currentTime = LogicalClock::get(operationContext())->getClusterTime();
 
     {
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_OK(keyStatus.getStatus());
 
         const auto key = keyStatus.getValue();
@@ -263,8 +263,8 @@ TEST_F(CacheUpdaterTest, ShouldCreateAnotherKeyIfNoValidKeyAfterCurrent) {
     }
 }
 
-TEST_F(CacheUpdaterTest, ShouldCreate2KeysIfAllKeysAreExpired) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldCreate2KeysIfAllKeysAreExpired) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     LogicalClock::get(operationContext())
         ->setClusterTimeFromTrustedSource(LogicalTime(Timestamp(120, 2)));
@@ -298,7 +298,7 @@ TEST_F(CacheUpdaterTest, ShouldCreate2KeysIfAllKeysAreExpired) {
     auto currentTime = LogicalClock::get(operationContext())->getClusterTime();
 
     {
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_OK(keyStatus.getStatus());
 
         const auto key = keyStatus.getValue();
@@ -367,8 +367,8 @@ TEST_F(CacheUpdaterTest, ShouldCreate2KeysIfAllKeysAreExpired) {
     }
 }
 
-TEST_F(CacheUpdaterTest, ShouldNotCreateNewKeyIfThereAre2UnexpiredKeys) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldNotCreateNewKeyIfThereAre2UnexpiredKeys) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     LogicalClock::get(operationContext())
         ->setClusterTimeFromTrustedSource(LogicalTime(Timestamp(100, 2)));
@@ -400,7 +400,7 @@ TEST_F(CacheUpdaterTest, ShouldNotCreateNewKeyIfThereAre2UnexpiredKeys) {
     }
 
     {
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_OK(keyStatus.getStatus());
 
         const auto key = keyStatus.getValue();
@@ -433,8 +433,8 @@ TEST_F(CacheUpdaterTest, ShouldNotCreateNewKeyIfThereAre2UnexpiredKeys) {
     }
 }
 
-TEST_F(CacheUpdaterTest, ShouldNotCreateKeysWithDisableKeyGenerationFailPoint) {
-    KeysCollectionCacheReaderAndUpdater updater("dummy", catalogClient(), Seconds(5));
+TEST_F(KeyGeneratorTest, ShouldNotCreateKeysWithDisableKeyGenerationFailPoint) {
+    KeyGenerator generator("dummy", catalogClient(), Seconds(5));
 
     const LogicalTime currentTime(LogicalTime(Timestamp(100, 0)));
     LogicalClock::get(operationContext())->setClusterTimeFromTrustedSource(currentTime);
@@ -442,7 +442,7 @@ TEST_F(CacheUpdaterTest, ShouldNotCreateKeysWithDisableKeyGenerationFailPoint) {
     {
         FailPointEnableBlock failKeyGenerationBlock("disableKeyGeneration");
 
-        auto keyStatus = updater.refresh(operationContext());
+        auto keyStatus = generator.refresh(operationContext());
         ASSERT_EQ(ErrorCodes::FailPointEnabled, keyStatus.getStatus());
     }
 

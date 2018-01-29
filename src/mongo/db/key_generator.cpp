@@ -28,7 +28,7 @@
 
 #include "mongo/platform/basic.h"
 
-#include "mongo/db/keys_collection_cache_reader_and_updater.h"
+#include "mongo/db/key_generator.h"
 
 #include "mongo/client/read_preference.h"
 #include "mongo/db/keys_collection_client.h"
@@ -68,14 +68,14 @@ LogicalTime addSeconds(const LogicalTime& logicalTime, const Seconds& seconds) {
 
 }  // unnamed namespace
 
-KeysCollectionCacheReaderAndUpdater::KeysCollectionCacheReaderAndUpdater(
+KeyGenerator::KeyGenerator(
     std::string purpose, KeysCollectionClient* client, Seconds keyValidForInterval)
-    : KeysCollectionCacheReader(purpose, client),
+    : KeysCollectionCache(purpose, client),
       _client(client),
       _purpose(std::move(purpose)),
       _keyValidForInterval(keyValidForInterval) {}
 
-StatusWith<KeysCollectionDocument> KeysCollectionCacheReaderAndUpdater::refresh(
+StatusWith<KeysCollectionDocument> KeyGenerator::refresh(
     OperationContext* opCtx) {
 
     if (MONGO_FAIL_POINT(disableKeyGeneration)) {
@@ -139,16 +139,16 @@ StatusWith<KeysCollectionDocument> KeysCollectionCacheReaderAndUpdater::refresh(
         }
     }
 
-    return KeysCollectionCacheReader::refresh(opCtx);
+    return KeysCollectionCache::refresh(opCtx);
 }
 
-StatusWith<KeysCollectionDocument> KeysCollectionCacheReaderAndUpdater::getKey(
+StatusWith<KeysCollectionDocument> KeyGenerator::getKey(
     const LogicalTime& forThisTime) {
-    return KeysCollectionCacheReader::getKey(forThisTime);
+    return KeysCollectionCache::getKey(forThisTime);
 }
 
-StatusWith<KeysCollectionDocument> KeysCollectionCacheReaderAndUpdater::getKeyById(
+StatusWith<KeysCollectionDocument> KeyGenerator::getKeyById(
     long long keyId, const LogicalTime& forThisTime) {
-    return KeysCollectionCacheReader::getKeyById(keyId, forThisTime);
+    return KeysCollectionCache::getKeyById(keyId, forThisTime);
 }
 }  // namespace mongo

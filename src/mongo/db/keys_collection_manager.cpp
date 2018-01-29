@@ -31,8 +31,8 @@
 
 #include "mongo/db/keys_collection_manager.h"
 
-#include "mongo/db/keys_collection_cache_reader.h"
-#include "mongo/db/keys_collection_cache_reader_and_updater.h"
+#include "mongo/db/keys_collection_cache.h"
+#include "mongo/db/key_generator.h"
 #include "mongo/db/keys_collection_client.h"
 #include "mongo/db/logical_clock.h"
 #include "mongo/db/logical_time.h"
@@ -165,7 +165,7 @@ void KeysCollectionManager::stopMonitoring() {
 void KeysCollectionManager::enableKeyGenerator(OperationContext* opCtx, bool doEnable) {
     if (doEnable) {
         _refresher.switchFunc(opCtx, [this](OperationContext* opCtx) {
-            KeysCollectionCacheReaderAndUpdater keyGenerator(
+            KeyGenerator keyGenerator(
                 _purpose, _client.get(), _keyValidForInterval);
             auto keyGenerationStatus = keyGenerator.refresh(opCtx);
 

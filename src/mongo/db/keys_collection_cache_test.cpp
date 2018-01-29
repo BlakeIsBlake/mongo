@@ -29,7 +29,7 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/jsobj.h"
-#include "mongo/db/keys_collection_cache_reader.h"
+#include "mongo/db/keys_collection_cache.h"
 #include "mongo/db/keys_collection_client_sharded.h"
 #include "mongo/db/keys_collection_document.h"
 #include "mongo/db/operation_context.h"
@@ -59,21 +59,21 @@ private:
 };
 
 TEST_F(CacheReaderTest, ErrorsIfCacheIsEmpty) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
     auto status = reader.getKey(LogicalTime(Timestamp(1, 0))).getStatus();
     ASSERT_EQ(ErrorCodes::KeyNotFound, status.code());
     ASSERT_FALSE(status.reason().empty());
 }
 
 TEST_F(CacheReaderTest, RefreshErrorsIfCacheIsEmpty) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
     auto status = reader.refresh(operationContext()).getStatus();
     ASSERT_EQ(ErrorCodes::KeyNotFound, status.code());
     ASSERT_FALSE(status.reason().empty());
 }
 
 TEST_F(CacheReaderTest, GetKeyShouldReturnCorrectKeyAfterRefresh) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
 
     KeysCollectionDocument origKey1(
         1, "test", TimeProofService::generateRandomKey(), LogicalTime(Timestamp(105, 0)));
@@ -104,7 +104,7 @@ TEST_F(CacheReaderTest, GetKeyShouldReturnCorrectKeyAfterRefresh) {
 }
 
 TEST_F(CacheReaderTest, GetKeyShouldReturnErrorIfNoKeyIsValidForGivenTime) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
 
     KeysCollectionDocument origKey1(
         1, "test", TimeProofService::generateRandomKey(), LogicalTime(Timestamp(105, 0)));
@@ -127,7 +127,7 @@ TEST_F(CacheReaderTest, GetKeyShouldReturnErrorIfNoKeyIsValidForGivenTime) {
 }
 
 TEST_F(CacheReaderTest, GetKeyShouldReturnOldestKeyPossible) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
 
     KeysCollectionDocument origKey0(
         0, "test", TimeProofService::generateRandomKey(), LogicalTime(Timestamp(100, 0)));
@@ -168,7 +168,7 @@ TEST_F(CacheReaderTest, GetKeyShouldReturnOldestKeyPossible) {
 }
 
 TEST_F(CacheReaderTest, RefreshShouldNotGetKeysForOtherPurpose) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
 
     KeysCollectionDocument origKey0(
         0, "dummy", TimeProofService::generateRandomKey(), LogicalTime(Timestamp(100, 0)));
@@ -212,7 +212,7 @@ TEST_F(CacheReaderTest, RefreshShouldNotGetKeysForOtherPurpose) {
 }
 
 TEST_F(CacheReaderTest, RefreshCanIncrementallyGetNewKeys) {
-    KeysCollectionCacheReader reader("test", catalogClient());
+    KeysCollectionCache reader("test", catalogClient());
 
     KeysCollectionDocument origKey0(
         0, "test", TimeProofService::generateRandomKey(), LogicalTime(Timestamp(100, 0)));
