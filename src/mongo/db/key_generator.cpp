@@ -71,9 +71,7 @@ LogicalTime addSeconds(const LogicalTime& logicalTime, const Seconds& seconds) {
 KeyGenerator::KeyGenerator(std::string purpose,
                            KeysCollectionClient* client,
                            Seconds keyValidForInterval)
-    : _client(client),
-      _purpose(std::move(purpose)),
-      _keyValidForInterval(keyValidForInterval) {}
+    : _client(client), _purpose(std::move(purpose)), _keyValidForInterval(keyValidForInterval) {}
 
 Status KeyGenerator::generateNewKeysIfNeeded(OperationContext* opCtx) {
 
