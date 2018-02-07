@@ -166,6 +166,13 @@ private:
                              const WriteConcernOptions& writeConcern);
 
     /**
+     * Method that consumes a BSONObjIterator and clones those documents
+     */
+    void _cloneDocuments(OperationContext* opCtx,
+                         const WriteConcernOptions& writeConcern,
+                         const BSONObj& documents);
+
+    /**
      * Remembers a chunk range between 'min' and 'max' as a range which will have data migrated
      * into it, to protect it against separate commands to clean up orphaned data. First, though,
      * it schedules deletion of any documents in the range, so that process must be seen to be

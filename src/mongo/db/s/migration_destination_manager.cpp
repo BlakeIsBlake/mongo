@@ -41,6 +41,7 @@
 #include "mongo/db/catalog/collection_catalog_entry.h"
 #include "mongo/db/catalog/document_validation.h"
 #include "mongo/db/catalog/index_create.h"
+#include "mongo/db/client.h"
 #include "mongo/db/db_raii.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/namespace_string.h"
@@ -57,6 +58,7 @@
 #include "mongo/s/shard_key_pattern.h"
 #include "mongo/stdx/chrono.h"
 #include "mongo/util/concurrency/notification.h"
+#include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
@@ -109,6 +111,19 @@ bool isInRange(const BSONObj& obj,
     ShardKeyPattern shardKey(shardKeyPattern);
     BSONObj k = shardKey.extractShardKeyFromDoc(obj);
     return k.woCompare(min) >= 0 && k.woCompare(max) < 0;
+}
+
+ThreadPool::Options makeDefaultThreadPoolOptions() {
+    ThreadPool::Options options;
+    options.poolName = "MigrationRecipientCloneWorker";
+    options.minThreads = 1;
+    options.maxThreads = 1;
+
+    options.onCreateThread = [](const std::string& threadName) {
+        Client::initThreadIfNotAlready(threadName.c_str());
+    };
+
+    return options;
 }
 
 /**
@@ -710,6 +725,13 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* opCtx,
         MONGO_FAIL_POINT_PAUSE_WHILE_SET(migrateThreadHangAtStep2);
     }
 
+    bool overlapWithCloneWorker = supportsDocLocking();
+
+    std::exception_ptr cloneWorkerException = nullptr;
+
+    ThreadPool cloneWorker(makeDefaultThreadPoolOptions());
+    cloneWorker.startup();
+
     {
         // 3. Initial bulk clone
         setState(CLONE);
@@ -719,6 +741,8 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* opCtx,
         const BSONObj migrateCloneRequest = createMigrateCloneRequest(_nss, *_sessionId);
 
         _chunkMarkedPending = true;  // no lock needed, only the migrate thread looks.
+
+        BSONObj cloneWorkerObject;
 
         while (true) {
             BSONObj res;
@@ -730,69 +754,48 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* opCtx,
                 return;
             }
 
-            BSONObj arr = res["objects"].Obj();
-            int thisTime = 0;
-
-            BSONObjIterator i(arr);
-            while (i.more()) {
-                opCtx->checkForInterrupt();
-
-                if (getState() == ABORT) {
-                    log() << "Migration aborted while copying documents";
-                    return;
-                }
-
-                BSONObj docToClone = i.next().Obj();
-                {
-                    OldClientWriteContext cx(opCtx, _nss.ns());
-
-                    BSONObj localDoc;
-                    if (willOverrideLocalId(opCtx,
-                                            _nss,
-                                            min,
-                                            max,
-                                            shardKeyPattern,
-                                            cx.db(),
-                                            docToClone,
-                                            &localDoc)) {
-                        const std::string errMsg = str::stream()
-                            << "cannot migrate chunk, local document " << redact(localDoc)
-                            << " has same _id as cloned "
-                            << "remote document " << redact(docToClone);
-                        warning() << errMsg;
-
-                        // Exception will abort migration cleanly
-                        uasserted(16976, errMsg);
-                    }
-
-                    Helpers::upsert(opCtx, _nss.ns(), docToClone, true);
-                }
-                thisTime++;
-
-                {
-                    stdx::lock_guard<stdx::mutex> statsLock(_mutex);
-                    _numCloned++;
-                    _clonedBytes += docToClone.objsize();
-                }
-
-                if (writeConcern.shouldWaitForOtherNodes()) {
-                    repl::ReplicationCoordinator::StatusAndDuration replStatus =
-                        repl::ReplicationCoordinator::get(opCtx)->awaitReplication(
-                            opCtx,
-                            repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp(),
-                            writeConcern);
-                    if (replStatus.status.code() == ErrorCodes::WriteConcernFailed) {
-                        warning() << "secondaryThrottle on, but doc insert timed out; "
-                                     "continuing";
-                    } else {
-                        massertStatusOK(replStatus.status);
-                    }
+            if (overlapWithCloneWorker) {
+                cloneWorker.waitForIdle();
+                if (cloneWorkerException) {
+                    std::rethrow_exception(cloneWorkerException);
                 }
             }
 
-            if (thisTime == 0)
+            BSONObj arr = res["objects"].Obj();
+
+            if (arr.isEmpty()) {
                 break;
+            }
+
+            cloneWorkerObject = arr.copy();
+
+            Status scheduleStatus = cloneWorker.schedule(
+                [this, &min, &max, &shardKeyPattern, writeConcern, res, &cloneWorkerException] {
+                    auto opCtx = Client::getCurrent()->makeOperationContext();
+                    try {
+                        _cloneDocuments(opCtx.get(), writeConcern, res["objects"].Obj());
+                    } catch (...) {
+                        cloneWorkerException = std::current_exception();
+                    }
+
+                });
+
+            if (!scheduleStatus.isOK()) {
+                setStateFail(str::stream() << "_migrateClone failed: " << redact(scheduleStatus));
+                conn.done();
+                return;
+            }
+
+            if (!overlapWithCloneWorker) {
+                cloneWorker.waitForIdle();
+                if (cloneWorkerException) {
+                    std::rethrow_exception(cloneWorkerException);
+                }
+            }
         }
+
+        cloneWorker.shutdown();
+        cloneWorker.join();
 
         timing.done(3);
         MONGO_FAIL_POINT_PAUSE_WHILE_SET(migrateThreadHangAtStep3);
@@ -1120,6 +1123,61 @@ void MigrationDestinationManager::_forgetPending(OperationContext* opCtx,
     }
 
     css->forgetReceive(range);
+}
+
+void MigrationDestinationManager::_cloneDocuments(OperationContext* opCtx,
+                                                  const WriteConcernOptions& writeConcern,
+                                                  const BSONObj& documents) {
+
+    BSONObjIterator i(documents);
+
+    while (i.more()) {
+        opCtx->checkForInterrupt();
+
+        if (getState() == ABORT) {
+            return;
+        }
+
+        BSONObj docToClone = i.next().Obj();
+        {
+            OldClientWriteContext cx(opCtx, _nss.ns());
+
+            BSONObj localDoc;
+            if (willOverrideLocalId(
+                    opCtx, _nss, _min, _max, _shardKeyPattern, cx.db(), docToClone, &localDoc)) {
+                const std::string errMsg = str::stream()
+                    << "cannot migrate chunk, local document " << redact(localDoc)
+                    << " has same _id as cloned "
+                    << "remote document " << redact(docToClone);
+                warning() << errMsg;
+
+                // Exception will abort migration cleanly
+                uasserted(16976, errMsg);
+            }
+
+            Helpers::upsert(opCtx, _nss.ns(), docToClone, true);
+        }
+
+        {
+            stdx::lock_guard<stdx::mutex> statsLock(_mutex);
+            _numCloned++;
+            _clonedBytes += docToClone.objsize();
+        }
+
+        if (writeConcern.shouldWaitForOtherNodes()) {
+            repl::ReplicationCoordinator::StatusAndDuration replStatus =
+                repl::ReplicationCoordinator::get(opCtx)->awaitReplication(
+                    opCtx,
+                    repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp(),
+                    writeConcern);
+            if (replStatus.status.code() == ErrorCodes::WriteConcernFailed) {
+                warning() << "secondaryThrottle on, but doc insert timed out; "
+                             "continuing";
+            } else {
+                massertStatusOK(replStatus.status);
+            }
+        }
+    }
 }
 
 }  // namespace mongo
