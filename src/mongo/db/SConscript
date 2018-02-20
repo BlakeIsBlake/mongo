@@ -630,6 +630,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/ops/write_ops_parsers',
         '$BUILD_DIR/mongo/db/s/sharding',
         '$BUILD_DIR/mongo/db/storage/storage_options',
+        '$BUILD_DIR/mongo/db/logical_session_cache_factory_mongod',
         '$BUILD_DIR/mongo/transport/service_entry_point',
         'command_can_run_here',
         'curop',

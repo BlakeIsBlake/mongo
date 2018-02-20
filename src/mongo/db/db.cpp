@@ -488,6 +488,10 @@ ExitCode _initAndListen(int listenPort) {
 
     SessionCatalog::create(serviceContext);
 
+    // Set up the periodic runner for background job execution
+    auto runner = makePeriodicRunner();
+    serviceContext->setPeriodicRunner(std::move(runner));
+
     // This function may take the global lock.
     auto shardingInitialized =
         uassertStatusOK(ShardingState::get(startupOpCtx.get())
@@ -561,16 +565,12 @@ ExitCode _initAndListen(int listenPort) {
 
     PeriodicTask::startRunningPeriodicTasks();
 
-    // Set up the periodic runner for background job execution
-    auto runner = makePeriodicRunner();
-    runner->startup().transitional_ignore();
-    serviceContext->setPeriodicRunner(std::move(runner));
-
     SessionKiller::set(serviceContext,
                        std::make_shared<SessionKiller>(serviceContext, killSessionsLocal));
 
     // Set up the logical session cache
     LogicalSessionCacheServer kind = LogicalSessionCacheServer::kStandalone;
+
     if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
         kind = LogicalSessionCacheServer::kSharded;
     } else if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
@@ -579,8 +579,14 @@ ExitCode _initAndListen(int listenPort) {
         kind = LogicalSessionCacheServer::kReplicaSet;
     }
 
-    auto sessionCache = makeLogicalSessionCacheD(serviceContext, kind);
-    LogicalSessionCache::set(serviceContext, std::move(sessionCache));
+    // Shards and config servers set up the LogicalSessionCache when they go through sharding
+    // state initialization
+    if (kind == LogicalSessionCacheServer::kStandalone ||
+        kind == LogicalSessionCacheServer::kReplicaSet) {
+        invariant(LogicalSessionCache::get(startupOpCtx.get()) == nullptr);
+        auto sessionCache = makeLogicalSessionCacheD(serviceContext, kind);
+        LogicalSessionCache::set(serviceContext, std::move(sessionCache));
+    }
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore
@@ -597,6 +603,10 @@ ExitCode _initAndListen(int listenPort) {
         error() << "Failed to start the listener: " << start.toString();
         return EXIT_NET_ERROR;
     }
+
+    // Start the periodic runner
+    uassertStatusOK(serviceContext->getPeriodicRunner()->startup());
+
 
     serviceContext->notifyStartupComplete();
 

@@ -373,6 +373,7 @@ env.Install(
                     ] + env.WindowsResourceFile("client/examples/mongoperf.rc"),
                     LIBDEPS=[
                         "base",
+                        "db/logical_session_cache_factory_mongod",
                         "db/serveronly",
                         "db/storage/mmap_v1/logfile",
                         "db/storage/mmap_v1/mmap",
