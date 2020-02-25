@@ -180,20 +180,9 @@ boost::optional<Document> MongosProcessInterface::lookupSingleDocument(
             // If it's an unsharded collection which has been deleted and re-created, we may get a
             // NamespaceNotFound error when looking up by UUID.
             return boost::none;
-        } catch (const ExceptionFor<ErrorCodes::StaleDbVersion>&) {
-            // If the database version is stale, refresh its entry in the catalog cache.
-            catalogCache->onStaleDatabaseVersion(nss.db(), routingInfo.db().databaseVersion());
-            continue;  // Try again if allowed.
-        } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>& e) {
-            // If the exception provides a shardId, add it to the set of shards requiring a refresh.
-            // If the cache currently considers the collection to be unsharded, this will trigger an
-            // epoch refresh. If no shard is provided, then the epoch is stale and we must refresh.
-            auto staleInfo = e.extraInfo<StaleConfigInfo>();
-            if (auto staleShardId = (staleInfo ? staleInfo->getShardId() : boost::none)) {
-                catalogCache->onStaleShardVersion(std::move(routingInfo), *staleShardId);
-            } else {
-                catalogCache->onEpochChange(nss);
-            }
+        } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>&) {
+            // If we hit a stale shardVersion exception, invalidate the routing table cache.
+            catalogCache->onStaleShardVersion(std::move(routingInfo));
             continue;  // Try again if allowed.
         }
         break;  // Success!

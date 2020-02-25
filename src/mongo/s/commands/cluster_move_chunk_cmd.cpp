@@ -197,9 +197,7 @@ public:
                                                         cmdObj["waitForDelete"].trueValue(),
                                                     forceJumbo));
 
-        Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo),
-                                                              chunk->getShardId());
-        Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo), to->getId());
+        Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo));
 
         result.append("millis", t.millis());
         return true;

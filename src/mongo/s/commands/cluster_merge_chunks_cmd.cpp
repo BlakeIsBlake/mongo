@@ -175,8 +175,7 @@ public:
             Shard::RetryPolicy::kNotIdempotent));
         uassertStatusOK(response.commandStatus);
 
-        Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo),
-                                                              firstChunk.getShardId());
+        Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo));
         CommandHelpers::filterCommandReplyForPassthrough(response.response, &result);
 
         return true;

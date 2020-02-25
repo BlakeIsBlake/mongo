@@ -567,16 +567,7 @@ CursorId ClusterFind::runQuery(OperationContext* opCtx,
                         "kMaxRetries"_attr = kMaxRetries,
                         "ex"_attr = redact(ex));
 
-            if (auto staleInfo = ex.extraInfo<StaleConfigInfo>()) {
-                catalogCache->invalidateShardOrEntireCollectionEntryForShardedCollection(
-                    opCtx,
-                    query.nss(),
-                    staleInfo->getVersionWanted(),
-                    staleInfo->getVersionReceived(),
-                    staleInfo->getShardId());
-            } else {
-                catalogCache->onEpochChange(query.nss());
-            }
+            catalogCache->onStaleShardVersion(std::move(routingInfo));
 
             if (auto txnRouter = TransactionRouter::get(opCtx)) {
                 if (!txnRouter.canContinueOnStaleShardOrDbError(kFindCmdName)) {

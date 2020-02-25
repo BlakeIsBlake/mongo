@@ -646,10 +646,7 @@ void ParallelSortClusteredCursor::startInit(OperationContext* opCtx) {
             NamespaceString staleNS(e->getNss());
             _markStaleNS(staleNS, e);
 
-            Grid::get(opCtx)
-                ->catalogCache()
-                ->invalidateShardOrEntireCollectionEntryForShardedCollection(
-                    opCtx, nss, e->getVersionWanted(), e->getVersionReceived(), e->getShardId());
+            Grid::get(opCtx)->catalogCache()->invalidateShardedCollection(staleNS);
 
             LOGV2_DEBUG(
                 22684,
@@ -915,14 +912,7 @@ void ParallelSortClusteredCursor::finishInit(OperationContext* opCtx) {
                 const StaleConfigException& ex = exEntry.second;
 
                 _markStaleNS(staleNS, ex);
-                // If we don't have a shardId (a valid case being receiving an exception from a
-                // v4.2 binary), we have to set the entire collection as stale.
-                if (!ex->getShardId()) {
-                    Grid::get(opCtx)->catalogCache()->onEpochChange(staleNS);
-                } else {
-                    Grid::get(opCtx)->catalogCache()->invalidateShardForShardedCollection(
-                        staleNS, *ex->getShardId());
-                }
+                Grid::get(opCtx)->catalogCache()->invalidateShardedCollection(staleNS);
 
                 LOGV2_DEBUG(
                     22688,

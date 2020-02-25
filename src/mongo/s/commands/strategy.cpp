@@ -662,21 +662,7 @@ void runCommand(OperationContext* opCtx,
                     ShardConnection::checkMyConnectionVersions(opCtx, staleNs.ns());
                 }
 
-                if (auto staleInfo = ex.extraInfo<StaleConfigInfo>()) {
-                    Grid::get(opCtx)
-                        ->catalogCache()
-                        ->invalidateShardOrEntireCollectionEntryForShardedCollection(
-                            opCtx,
-                            staleNs,
-                            staleInfo->getVersionWanted(),
-                            staleInfo->getVersionReceived(),
-                            staleInfo->getShardId());
-                } else {
-                    // If we don't have the stale config info and therefore don't know the shard's
-                    // id, we have to force all further targetting requests for the namespace to
-                    // block on a refresh.
-                    Grid::get(opCtx)->catalogCache()->onEpochChange(staleNs);
-                }
+                Grid::get(opCtx)->catalogCache()->invalidateShardedCollection(staleNs);
 
                 // Retry logic specific to transactions. Throws and aborts the transaction if the
                 // error cannot be retried on.
@@ -1230,21 +1216,7 @@ void Strategy::explainFind(OperationContext* opCtx,
                 ShardConnection::checkMyConnectionVersions(opCtx, staleNs.ns());
             }
 
-            if (auto staleInfo = ex.extraInfo<StaleConfigInfo>()) {
-                Grid::get(opCtx)
-                    ->catalogCache()
-                    ->invalidateShardOrEntireCollectionEntryForShardedCollection(
-                        opCtx,
-                        staleNs,
-                        staleInfo->getVersionWanted(),
-                        staleInfo->getVersionReceived(),
-                        staleInfo->getShardId());
-            } else {
-                // If we don't have the stale config info and therefore don't know the shard's id,
-                // we have to force all further targetting requests for the namespace to block on
-                // a refresh.
-                Grid::get(opCtx)->catalogCache()->onEpochChange(staleNs);
-            }
+            Grid::get(opCtx)->catalogCache()->invalidateShardedCollection(staleNs);
 
             if (canRetry) {
                 continue;

@@ -869,11 +869,7 @@ int ChunkManagerTargeter::getNShardsOwningChunks() const {
 }
 
 Status ChunkManagerTargeter::_refreshShardVersionNow(OperationContext* opCtx) {
-    auto routingInfoStatus =
-        Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfoWithRefresh(opCtx, _nss, true);
-    if (!routingInfoStatus.isOK()) {
-        return routingInfoStatus.getStatus();
-    }
+    Grid::get(opCtx)->catalogCache()->onStaleShardVersion(std::move(*_routingInfo));
 
     return init(opCtx);
 }
