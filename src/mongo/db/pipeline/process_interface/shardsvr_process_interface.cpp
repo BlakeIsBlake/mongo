@@ -72,9 +72,7 @@ void ShardServerProcessInterface::checkRoutingInfoEpochOrThrow(
     const NamespaceString& nss,
     ChunkVersion targetCollectionVersion) const {
     auto catalogCache = Grid::get(expCtx->opCtx)->catalogCache();
-    auto const shardId = ShardingState::get(expCtx->opCtx)->shardId();
-
-    return catalogCache->checkEpochOrThrow(nss, targetCollectionVersion, shardId);
+    return catalogCache->checkEpochOrThrow(nss, targetCollectionVersion);
 }
 
 std::pair<std::vector<FieldPath>, bool>

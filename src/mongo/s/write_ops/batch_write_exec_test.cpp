@@ -92,8 +92,7 @@ BSONObj expectInsertsReturnStaleVersionErrorsBase(const NamespaceString& nss,
         WriteErrorDetail* error = new WriteErrorDetail;
         error->setStatus({ErrorCodes::StaleShardVersion, "mock stale error"});
         error->setErrInfo([&] {
-            StaleConfigInfo sci(
-                nss, ChunkVersion(1, 0, epoch), ChunkVersion(2, 0, epoch), ShardId(kShardName1));
+            StaleConfigInfo sci(nss, ChunkVersion(1, 0, epoch), ChunkVersion(2, 0, epoch));
             BSONObjBuilder builder;
             sci.serialize(&builder);
             return builder.obj();
@@ -461,8 +460,7 @@ TEST_F(BatchWriteExecTest, StaleShardVersionReturnedFromBatchWithSingleMultiWrit
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName2)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -562,8 +560,7 @@ TEST_F(BatchWriteExecTest,
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName2)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -578,8 +575,7 @@ TEST_F(BatchWriteExecTest,
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName2)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -668,8 +664,7 @@ TEST_F(BatchWriteExecTest, RetryableErrorReturnedFromMultiWriteWithShard1Firs) {
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName1)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -694,8 +689,7 @@ TEST_F(BatchWriteExecTest, RetryableErrorReturnedFromMultiWriteWithShard1Firs) {
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName2)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -795,8 +789,7 @@ TEST_F(BatchWriteExecTest, RetryableErrorReturnedFromMultiWriteWithShard1FirstOK
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName1)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);
@@ -821,8 +814,7 @@ TEST_F(BatchWriteExecTest, RetryableErrorReturnedFromMultiWriteWithShard1FirstOK
             errDetail->setErrInfo([&] {
                 Status ssvStatus(StaleConfigInfo(nss,
                                                  ChunkVersion(101, 200, epoch),
-                                                 ChunkVersion(105, 200, epoch),
-                                                 ShardId(kShardName2)),
+                                                 ChunkVersion(105, 200, epoch)),
                                  "Stale shard version");
                 BSONObjBuilder builder;
                 ssvStatus.serializeErrorToBSON(&builder);

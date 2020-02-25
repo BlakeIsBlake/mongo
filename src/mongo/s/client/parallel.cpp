@@ -1248,8 +1248,7 @@ void ParallelSortClusteredCursor::_oldInit(OperationContext* opCtx) {
             // Version is zero b/c this is deprecated codepath
             uasserted(StaleConfigInfo(NamespaceString(_ns),
                                       ChunkVersion(0, 0, OID()),
-                                      ChunkVersion(0, 0, OID()),
-                                      boost::none),
+                                      ChunkVersion(0, 0, OID())),
                       errMsg.str());
         } else if (throwException) {
             uasserted(14827, errMsg.str());

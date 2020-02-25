@@ -232,9 +232,7 @@ public:
      * epoch of 'targetCollectionVersion' when performing the check, but needs the entire target
      * version to throw a StaleConfigException.
      */
-    void checkEpochOrThrow(const NamespaceString& nss,
-                           ChunkVersion targetCollectionVersion,
-                           const ShardId& shardId) const;
+    void checkEpochOrThrow(const NamespaceString& nss, ChunkVersion targetCollectionVersion) const;
 
     /**
      * Non-blocking method, which indiscriminately causes the database entry for the specified

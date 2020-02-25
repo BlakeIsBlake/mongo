@@ -38,7 +38,6 @@
 #include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/sharded_connection_info.h"
 #include "mongo/db/s/sharding_runtime_d_params_gen.h"
-#include "mongo/db/s/sharding_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/duration.h"
 
@@ -324,8 +323,6 @@ boost::optional<ScopedCollectionMetadata> CollectionShardingRuntime::_getMetadat
         return boost::none;
     }
 
-    auto const shardId = ShardingState::get(opCtx)->shardId();
-
     const auto& receivedShardVersion = *optReceivedShardVersion;
 
     // An operation with read concern 'available' should never have shardVersion set.
@@ -347,8 +344,7 @@ boost::optional<ScopedCollectionMetadata> CollectionShardingRuntime::_getMetadat
 
     if (criticalSectionSignal) {
         uasserted(
-            StaleConfigInfo(
-                _nss, receivedShardVersion, wantedShardVersion, shardId, criticalSectionSignal),
+            StaleConfigInfo(_nss, receivedShardVersion, wantedShardVersion, criticalSectionSignal),
             str::stream() << "migration commit in progress for " << _nss.ns());
     }
 
@@ -357,7 +353,7 @@ boost::optional<ScopedCollectionMetadata> CollectionShardingRuntime::_getMetadat
     // The versions themselves are returned in the error, so not needed in messages here
     //
 
-    StaleConfigInfo sci(_nss, receivedShardVersion, wantedShardVersion, shardId);
+    StaleConfigInfo sci(_nss, receivedShardVersion, wantedShardVersion);
 
     if (ChunkVersion::isIgnoredVersion(receivedShardVersion)) {
         uassert(std::move(sci),
