@@ -140,7 +140,7 @@ boost::optional<Document> MongosProcessInterface::lookupSingleDocument(
         // Obtain the catalog cache. If we are retrying after a stale shard error, mark this
         // operation as needing to block on the next catalog cache refresh.
         auto catalogCache = Grid::get(expCtx->opCtx)->catalogCache();
-        catalogCache->setOperationShouldBlockBehindCatalogCacheRefresh(expCtx->opCtx, numRetries);
+        catalogCache->setOperationShouldSkipCatalogCacheRefresh(expCtx->opCtx, !numRetries);
 
         // Verify that the collection exists, with the correct UUID.
         auto swRoutingInfo = getCollectionRoutingInfo(foreignExpCtx);

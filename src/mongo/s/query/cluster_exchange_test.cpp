@@ -105,7 +105,7 @@ public:
                           const OID epoch,
                           const ShardKeyPattern& shardKey,
                           const std::vector<ChunkType>& chunkDistribution) {
-        auto future = scheduleRoutingInfoUnforcedRefresh(nss);
+        auto future = scheduleRoutingInfoRefresh(nss);
 
         // Mock the expected config server queries.
         expectGetDatabase(nss);

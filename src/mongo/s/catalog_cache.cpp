@@ -50,7 +50,7 @@
 #include "mongo/util/timer.h"
 
 namespace mongo {
-const OperationContext::Decoration<bool> operationShouldBlockBehindCatalogCacheRefresh =
+const OperationContext::Decoration<bool> operationShouldSkipCatalogCacheRefresh =
     OperationContext::declareDecoration<bool>();
 
 namespace {
@@ -202,7 +202,9 @@ StatusWith<CachedCollectionRoutingInfo> CatalogCache::getCollectionRoutingInfo(
 
 CatalogCache::RefreshResult CatalogCache::_getCollectionRoutingInfoWithForcedRefresh(
     OperationContext* opCtx, const NamespaceString& nss) {
-    setOperationShouldBlockBehindCatalogCacheRefresh(opCtx, true);
+    // TODO SERVER-44501 Change function to indicate that the operation should block on a catalog
+    // cache refresh before triggering the refresh, since we will change the operation context
+    // variable to indicate skipping the refresh by default.
     _createOrGetCollectionEntryAndMarkAsNeedsRefresh(nss);
     return _getCollectionRoutingInfo(opCtx, nss);
 }
@@ -251,8 +253,7 @@ CatalogCache::RefreshResult CatalogCache::_getCollectionRoutingInfoAt(
 
         auto& collEntry = itColl->second;
 
-        if (collEntry->needsRefresh &&
-            (collEntry->epochHasChanged || operationShouldBlockBehindCatalogCacheRefresh(opCtx))) {
+        if (collEntry->needsRefresh && !getOperationShouldSkipCatalogCacheRefresh(opCtx)) {
             auto refreshNotification = collEntry->refreshCompletionNotification;
             if (!refreshNotification) {
                 refreshNotification = (collEntry->refreshCompletionNotification =
@@ -376,6 +377,9 @@ void CatalogCache::onStaleShardVersion(CachedCollectionRoutingInfo&& ccriToInval
     auto itColl = itDb->second.find(nss.ns());
     if (itColl == itDb->second.end()) {
         // The collection was dropped.
+    } else if (itColl->second->needsRefresh) {
+        // Refresh has been scheduled for the collection already
+        return;
     } else if (itColl->second->routingInfo->getVersion() == ccri._cm->getVersion()) {
         // If the versions match, the last version of the routing information that we used is no
         // longer valid, so trigger a refresh.
@@ -384,9 +388,13 @@ void CatalogCache::onStaleShardVersion(CachedCollectionRoutingInfo&& ccriToInval
     }
 }
 
-void CatalogCache::setOperationShouldBlockBehindCatalogCacheRefresh(OperationContext* opCtx,
-                                                                    bool shouldBlock) {
-    operationShouldBlockBehindCatalogCacheRefresh(opCtx) = shouldBlock;
+bool CatalogCache::getOperationShouldSkipCatalogCacheRefresh(OperationContext* opCtx) {
+    return operationShouldSkipCatalogCacheRefresh(opCtx);
+};
+
+void CatalogCache::setOperationShouldSkipCatalogCacheRefresh(OperationContext* opCtx,
+                                                             bool shouldSkip) {
+    operationShouldSkipCatalogCacheRefresh(opCtx) = shouldSkip;
 };
 
 void CatalogCache::invalidateShardOrEntireCollectionEntryForShardedCollection(
@@ -718,8 +726,6 @@ void CatalogCache::_scheduleCollectionRefresh(WithLock lk,
         collEntry->needsRefresh = false;
         collEntry->refreshCompletionNotification->set(Status::OK());
         collEntry->refreshCompletionNotification = nullptr;
-
-        setOperationShouldBlockBehindCatalogCacheRefresh(opCtx, false);
 
         if (!newRoutingInfo) {
             // The refresh found that collection was dropped, so remove it from our cache.

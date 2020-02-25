@@ -62,21 +62,11 @@ void CatalogCacheTestFixture::setUp() {
 }
 
 executor::NetworkTestEnv::FutureHandle<boost::optional<CachedCollectionRoutingInfo>>
-CatalogCacheTestFixture::scheduleRoutingInfoForcedRefresh(const NamespaceString& nss) {
+CatalogCacheTestFixture::scheduleRoutingInfoRefresh(const NamespaceString& nss) {
     return launchAsync([this, nss] {
         auto client = getServiceContext()->makeClient("Test");
         auto const catalogCache = Grid::get(getServiceContext())->catalogCache();
-
-        return boost::make_optional(uassertStatusOK(
-            catalogCache->getCollectionRoutingInfoWithRefresh(operationContext(), nss)));
-    });
-}
-
-executor::NetworkTestEnv::FutureHandle<boost::optional<CachedCollectionRoutingInfo>>
-CatalogCacheTestFixture::scheduleRoutingInfoUnforcedRefresh(const NamespaceString& nss) {
-    return launchAsync([this, nss] {
-        auto client = getServiceContext()->makeClient("Test");
-        auto const catalogCache = Grid::get(getServiceContext())->catalogCache();
+        catalogCache->onEpochChange(nss);
 
         return boost::make_optional(
             uassertStatusOK(catalogCache->getCollectionRoutingInfo(operationContext(), nss)));
@@ -157,7 +147,7 @@ std::shared_ptr<ChunkManager> CatalogCacheTestFixture::makeChunkManager(
 
     setupNShards(initialChunks.size());
 
-    auto future = scheduleRoutingInfoUnforcedRefresh(nss);
+    auto future = scheduleRoutingInfoRefresh(nss);
 
     expectFindSendBSONObjVector(kConfigHostAndPort, {databaseBSON});
     expectFindSendBSONObjVector(kConfigHostAndPort, {collectionBSON});
@@ -211,7 +201,7 @@ CachedCollectionRoutingInfo CatalogCacheTestFixture::loadRoutingTableWithTwoChun
     const OID epoch = OID::gen();
     const ShardKeyPattern shardKeyPattern(shardKey);
 
-    auto future = scheduleRoutingInfoForcedRefresh(nss);
+    auto future = scheduleRoutingInfoRefresh(nss);
 
     // Mock the expected config server queries.
     expectGetDatabase(nss);

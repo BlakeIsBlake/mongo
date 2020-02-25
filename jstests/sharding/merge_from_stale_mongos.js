@@ -228,9 +228,7 @@ function runOutTest(mongosList) {
     });
 }
 
-// TODO SERVER-45186 Uncomment this section.
-/*
-Legacy $out will fail if the target collection is sharded.
+// Legacy $out will fail if the target collection is sharded.
 setupStaleMongos({shardedSource: false, shardedTarget: false});
 runOutTest([staleMongosSource, staleMongosTarget]);
 
@@ -244,7 +242,6 @@ runOutTest([staleMongosSource, staleMongosTarget]);
 setupStaleMongos({shardedSource: false, shardedTarget: true});
 assert.eq(assert.throws(() => runOutTest(staleMongosSource)).code, 28769);
 assert.eq(assert.throws(() => runOutTest(staleMongosTarget)).code, ErrorCodes.IllegalOperation);
-*/
 
 st.stop();
 }());

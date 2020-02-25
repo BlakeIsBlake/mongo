@@ -53,10 +53,13 @@ class OperationContext;
 static constexpr int kMaxNumStaleVersionRetries = 10;
 
 /**
- * If true, this operation should block behind a catalog cache refresh. Otherwise, the operation
- * will block skip the catalog cache refresh.
+ * If true, this operation should skip a catalog cache refresh. Otherwise, the operation will
+ * block behind the catalog cache refresh.
+ *
+ * TODO SERVER-44501: Invert this boolean, because boolean decorations are default-constructed to
+ * false.
  */
-extern const OperationContext::Decoration<bool> operationShouldBlockBehindCatalogCacheRefresh;
+extern const OperationContext::Decoration<bool> operationShouldSkipCatalogCacheRefresh;
 
 /**
  * Constructed exclusively by the CatalogCache, contains a reference to the cached information for
@@ -213,15 +216,14 @@ public:
     void onStaleShardVersion(CachedCollectionRoutingInfo&&, const ShardId& staleShardId);
 
     /**
-     * Gets whether this operation should block behind a catalog cache refresh.
+     * Gets whether this operation should skip a catalog cache refresh.
      */
-    static bool getOperationShouldBlockBehindCatalogCacheRefresh(OperationContext* opCtx);
+    static bool getOperationShouldSkipCatalogCacheRefresh(OperationContext* opCtx);
 
     /**
-     * Sets whether this operation should block behind a catalog cache refresh.
+     * Sets whether this operation should skip a catalog catche refresh.
      */
-    static void setOperationShouldBlockBehindCatalogCacheRefresh(OperationContext* opCtx,
-                                                                 bool shouldBlock);
+    static void setOperationShouldSkipCatalogCacheRefresh(OperationContext* opCtx, bool shouldSkip);
 
     /**
      * Invalidates a single shard for the current collection if:
@@ -313,7 +315,7 @@ private:
 
         // Specifies whether the namespace has had an epoch change, which indicates that every
         // shard should block on an upcoming refresh.
-        bool epochHasChanged{true};
+        bool epochHasChanged{false};
 
         // Contains a notification to be waited on for the refresh to complete (only available if
         // needsRefresh is true)
