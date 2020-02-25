@@ -550,7 +550,6 @@ CursorId ClusterFind::runQuery(OperationContext* opCtx,
                               << "Failed to run query after " << kMaxRetries << " retries");
                 throw;
             } else if (!ErrorCodes::isStaleShardVersionError(ex.code()) &&
-                       ex.code() != ErrorCodes::ShardInvalidatedForTargeting &&
                        ex.code() != ErrorCodes::ShardNotFound) {
                 // Errors other than stale metadata or from trying to reach a non existent shard are
                 // fatal to the operation. Network errors and replication retries happen at the
@@ -568,26 +567,21 @@ CursorId ClusterFind::runQuery(OperationContext* opCtx,
                         "kMaxRetries"_attr = kMaxRetries,
                         "ex"_attr = redact(ex));
 
-            if (ex.code() != ErrorCodes::ShardInvalidatedForTargeting) {
-                if (auto staleInfo = ex.extraInfo<StaleConfigInfo>()) {
-                    catalogCache->invalidateShardOrEntireCollectionEntryForShardedCollection(
-                        opCtx,
-                        query.nss(),
-                        staleInfo->getVersionWanted(),
-                        staleInfo->getVersionReceived(),
-                        staleInfo->getShardId());
-                } else {
-                    catalogCache->onEpochChange(query.nss());
-                }
+            if (auto staleInfo = ex.extraInfo<StaleConfigInfo>()) {
+                catalogCache->invalidateShardOrEntireCollectionEntryForShardedCollection(
+                    opCtx,
+                    query.nss(),
+                    staleInfo->getVersionWanted(),
+                    staleInfo->getVersionReceived(),
+                    staleInfo->getShardId());
+            } else {
+                catalogCache->onEpochChange(query.nss());
             }
 
             catalogCache->setOperationShouldBlockBehindCatalogCacheRefresh(opCtx, true);
 
             if (auto txnRouter = TransactionRouter::get(opCtx)) {
                 if (!txnRouter.canContinueOnStaleShardOrDbError(kFindCmdName)) {
-                    if (ex.code() == ErrorCodes::ShardInvalidatedForTargeting) {
-                        (void)catalogCache->getCollectionRoutingInfoWithRefresh(opCtx, query.nss());
-                    }
                     throw;
                 }
 
