@@ -137,11 +137,6 @@ boost::optional<Document> MongosProcessInterface::lookupSingleDocument(
     auto shardResults = std::vector<RemoteCursor>();
     auto findCmd = cmdBuilder.obj();
     for (size_t numRetries = 0; numRetries <= kMaxNumStaleVersionRetries; ++numRetries) {
-        // Obtain the catalog cache. If we are retrying after a stale shard error, mark this
-        // operation as needing to block on the next catalog cache refresh.
-        auto catalogCache = Grid::get(expCtx->opCtx)->catalogCache();
-        catalogCache->setOperationShouldSkipCatalogCacheRefresh(expCtx->opCtx, !numRetries);
-
         // Verify that the collection exists, with the correct UUID.
         auto swRoutingInfo = getCollectionRoutingInfo(foreignExpCtx);
         if (swRoutingInfo == ErrorCodes::NamespaceNotFound) {
@@ -182,7 +177,7 @@ boost::optional<Document> MongosProcessInterface::lookupSingleDocument(
             return boost::none;
         } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>&) {
             // If we hit a stale shardVersion exception, invalidate the routing table cache.
-            catalogCache->onStaleShardVersion(std::move(routingInfo));
+            Grid::get(expCtx->opCtx)->catalogCache()->onStaleShardVersion(std::move(routingInfo));
             continue;  // Try again if allowed.
         }
         break;  // Success!
