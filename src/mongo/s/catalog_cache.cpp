@@ -254,6 +254,8 @@ CatalogCache::RefreshResult CatalogCache::_getCollectionRoutingInfoAt(
 
         if (collEntry->needsRefresh &&
             (gEnableFinerGrainedCatalogCacheRefresh || collEntry->epochHasChanged || operationShouldBlockBehindCatalogCacheRefresh(opCtx))) {
+                    LOGV2(
+            4639400, "The startup parameter was: {param}", "param"_attr = gEnableFinerGrainedCatalogCacheRefresh);
             auto refreshNotification = collEntry->refreshCompletionNotification;
             if (!refreshNotification) {
                 refreshNotification = (collEntry->refreshCompletionNotification =
