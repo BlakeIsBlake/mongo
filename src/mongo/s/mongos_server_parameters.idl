@@ -82,5 +82,5 @@ server_parameters:
         Enables the finer grained catalog cache refresh behavior.
     set_at: [ startup ]
     cpp_vartype: bool
-    cpp_varname: "enableFinerGrainedCatalogCacheRefresh"
-    default: true
+    cpp_varname: "gEnableFinerGrainedCatalogCacheRefresh"
+    default: false

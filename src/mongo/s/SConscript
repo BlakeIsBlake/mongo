@@ -123,7 +123,6 @@ env.Library(
         '$BUILD_DIR/mongo/executor/thread_pool_task_executor',
         '$BUILD_DIR/mongo/executor/connection_pool_executor',
         'coreshard',
-        'mongos_server_parameters',
         'sharding_task_executor',
     ],
 )
@@ -310,6 +309,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/logical_time_metadata_hook',
         '$BUILD_DIR/mongo/executor/task_executor_pool',
         'client/shard_interface',
+        'mongos_server_parameters',
         'query/cluster_cursor_manager',
         'sharding_routing_table',
     ],

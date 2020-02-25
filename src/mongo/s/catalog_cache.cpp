@@ -43,6 +43,7 @@
 #include "mongo/s/client/shard_registry.h"
 #include "mongo/s/database_version_helpers.h"
 #include "mongo/s/grid.h"
+#include "mongo/s/mongos_server_parameters_gen.h"
 #include "mongo/s/stale_exception.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/log.h"
@@ -252,7 +253,7 @@ CatalogCache::RefreshResult CatalogCache::_getCollectionRoutingInfoAt(
         auto& collEntry = itColl->second;
 
         if (collEntry->needsRefresh &&
-            (collEntry->epochHasChanged || operationShouldBlockBehindCatalogCacheRefresh(opCtx))) {
+            (gEnableFinerGrainedCatalogCacheRefresh || collEntry->epochHasChanged || operationShouldBlockBehindCatalogCacheRefresh(opCtx))) {
             auto refreshNotification = collEntry->refreshCompletionNotification;
             if (!refreshNotification) {
                 refreshNotification = (collEntry->refreshCompletionNotification =
