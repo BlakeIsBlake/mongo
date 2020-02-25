@@ -205,7 +205,7 @@ CatalogCache::RefreshResult CatalogCache::_getCollectionRoutingInfoWithForcedRef
     // TODO SERVER-44501 Change function to indicate that the operation should block on a catalog
     // cache refresh before triggering the refresh, since we will change the operation context
     // variable to indicate skipping the refresh by default.
-    _createOrGetCollectionEntryAndMarkAsNeedsRefresh(nss);
+    _createOrGetCollectionEntryAndMarkAsNeedsRefresh(nss, false /* markEpochAsChanged */);
     return _getCollectionRoutingInfo(opCtx, nss);
 }
 
@@ -384,7 +384,6 @@ void CatalogCache::onStaleShardVersion(CachedCollectionRoutingInfo&& ccriToInval
         // If the versions match, the last version of the routing information that we used is no
         // longer valid, so trigger a refresh.
         itColl->second->needsRefresh = true;
-        itColl->second->routingInfo->setShardStale(staleShardId);
     }
 }
 
@@ -404,14 +403,14 @@ void CatalogCache::invalidateShardOrEntireCollectionEntryForShardedCollection(
     const ChunkVersion& receivedVersion,
     boost::optional<ShardId> shardId) {
     if (shardId && shardVersionsHaveMatchingEpoch(wantedVersion, receivedVersion)) {
-        _createOrGetCollectionEntryAndMarkShardStale(nss, *shardId);
+        invalidateShardForShardedCollection(nss, *shardId);
     } else {
-        _createOrGetCollectionEntryAndMarkEpochStale(nss);
+        onEpochChange(nss);
     }
-};
+}
 
 void CatalogCache::onEpochChange(const NamespaceString& nss) {
-    _createOrGetCollectionEntryAndMarkEpochStale(nss);
+    _createOrGetCollectionEntryAndMarkAsNeedsRefresh(nss, true /* markEpochAsChanged */);
 };
 
 void CatalogCache::checkEpochOrThrow(const NamespaceString& nss,
@@ -456,7 +455,7 @@ void CatalogCache::invalidateDatabaseEntry(const StringData dbName) {
 
 void CatalogCache::invalidateShardForShardedCollection(const NamespaceString& nss,
                                                        const ShardId& staleShardId) {
-    _createOrGetCollectionEntryAndMarkShardStale(nss, staleShardId);
+    _createOrGetCollectionEntryAndMarkAsNeedsRefresh(nss, false /* markEpochAsChanged */);
 }
 
 void CatalogCache::invalidateEntriesThatReferenceShard(const ShardId& shardId) {
@@ -507,7 +506,6 @@ void CatalogCache::invalidateEntriesThatReferenceShard(const ShardId& shardId) {
                                 "shardId"_attr = shardId);
 
                     collRoutingInfoEntry->needsRefresh = true;
-                    collRoutingInfoEntry->routingInfo->setShardStale(shardId);
                 }
             }
         }
@@ -764,53 +762,24 @@ void CatalogCache::_scheduleCollectionRefresh(WithLock lk,
     invariant(collEntry->routingInfo.get() == existingRoutingInfo.get());
 }
 
-void CatalogCache::_createOrGetCollectionEntryAndMarkEpochStale(const NamespaceString& nss) {
+void CatalogCache::_createOrGetCollectionEntryAndMarkAsNeedsRefresh(const NamespaceString& nss,
+                                                                    bool markEpochAsChanged) {
     stdx::lock_guard<Latch> lg(_mutex);
-    auto optionalRoutingInfoEntry = _createOrGetCollectionEntry(lg, nss);
-    if (!optionalRoutingInfoEntry) {
-        return;
-    }
 
-    optionalRoutingInfoEntry->needsRefresh = true;
-    optionalRoutingInfoEntry->epochHasChanged = true;
-}
-
-void CatalogCache::_createOrGetCollectionEntryAndMarkShardStale(const NamespaceString& nss,
-                                                                const ShardId& staleShardId) {
-    stdx::lock_guard<Latch> lg(_mutex);
-    auto optionalRoutingInfoEntry = _createOrGetCollectionEntry(lg, nss);
-    if (!optionalRoutingInfoEntry) {
-        return;
-    }
-
-    optionalRoutingInfoEntry->needsRefresh = true;
-    if (optionalRoutingInfoEntry->routingInfo) {
-        optionalRoutingInfoEntry->routingInfo->setShardStale(staleShardId);
-    }
-}
-
-void CatalogCache::_createOrGetCollectionEntryAndMarkAsNeedsRefresh(const NamespaceString& nss) {
-    stdx::lock_guard<Latch> lg(_mutex);
-    auto optionalRoutingInfoEntry = _createOrGetCollectionEntry(lg, nss);
-    if (!optionalRoutingInfoEntry) {
-        return;
-    }
-
-    optionalRoutingInfoEntry->needsRefresh = true;
-}
-
-boost::optional<CatalogCache::CollectionRoutingInfoEntry&>
-CatalogCache::_createOrGetCollectionEntry(WithLock wl, const NamespaceString& nss) {
     auto itDb = _collectionsByDb.find(nss.db());
     if (itDb == _collectionsByDb.end()) {
-        return boost::none;
+        return;
     }
 
     if (itDb->second.find(nss.ns()) == itDb->second.end()) {
         itDb->second[nss.ns()] = std::make_shared<CollectionRoutingInfoEntry>();
     }
 
-    return *itDb->second[nss.ns()];
+    itDb->second[nss.ns()]->needsRefresh = true;
+
+    if (markEpochAsChanged) {
+        itDb->second[nss.ns()]->epochHasChanged = true;
+    }
 }
 
 void CatalogCache::Stats::report(BSONObjBuilder* builder) const {
