@@ -268,10 +268,11 @@ bool checkShardVersion(OperationContext* opCtx,
 
     auto const catalogCache = Grid::get(opCtx)->catalogCache();
 
-    auto routingInfoStatus = authoritative
-        ? catalogCache->getCollectionRoutingInfoWithRefresh(opCtx, nss)
-        : catalogCache->getCollectionRoutingInfo(opCtx, nss);
+    if (authoritative) {
+        Grid::get(opCtx)->catalogCache()->onEpochChange(nss);
+    }
 
+    auto routingInfoStatus = catalogCache->getCollectionRoutingInfo(opCtx, nss);
     if (!routingInfoStatus.isOK()) {
         return false;
     }
@@ -389,7 +390,7 @@ bool checkShardVersion(OperationContext* opCtx,
         return true;
     }
 
-    (void)catalogCache->getCollectionRoutingInfoWithRefresh(opCtx, nss);
+    Grid::get(opCtx)->catalogCache()->onEpochChange(nss);
 
     const int maxNumTries = 7;
     if (tryNumber < maxNumTries) {
