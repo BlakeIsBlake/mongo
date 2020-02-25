@@ -90,6 +90,8 @@ public:
     StatusWith<std::vector<ShardEndpoint>> targetDelete(
         OperationContext* opCtx, const write_ops::DeleteOpEntry& deleteDoc) const override;
 
+    StatusWith<std::vector<ShardEndpoint>> targetCollection() const override;
+
     StatusWith<std::vector<ShardEndpoint>> targetAllShards(OperationContext* opCtx) const override;
 
     void noteCouldNotTarget() override;
@@ -110,8 +112,6 @@ public:
      * Also see NSTargeter::refreshIfNeeded().
      */
     Status refreshIfNeeded(OperationContext* opCtx, bool* wasChanged) override;
-
-    virtual bool endpointIsConfigServer() const override;
 
     int getNShardsOwningChunks() const override;
 
