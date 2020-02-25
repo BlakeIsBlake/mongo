@@ -65,11 +65,12 @@ executor::NetworkTestEnv::FutureHandle<boost::optional<CachedCollectionRoutingIn
 CatalogCacheTestFixture::scheduleRoutingInfoRefresh(const NamespaceString& nss) {
     return launchAsync([this, nss] {
         auto client = getServiceContext()->makeClient("Test");
+        auto opCtx = client->makeOperationContext();
         auto const catalogCache = Grid::get(getServiceContext())->catalogCache();
         catalogCache->invalidateShardedCollection(nss);
 
         return boost::make_optional(
-            uassertStatusOK(catalogCache->getCollectionRoutingInfo(operationContext(), nss)));
+            uassertStatusOK(catalogCache->getCollectionRoutingInfo(opCtx.get(), nss)));
     });
 }
 
