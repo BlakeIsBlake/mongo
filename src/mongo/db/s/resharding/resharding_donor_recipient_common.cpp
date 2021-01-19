@@ -82,7 +82,7 @@ void processReshardingFieldsForDonorCollection(OperationContext* opCtx,
     // donor document in-memory, this means that the document will be recovered by the
     // ReshardingDonorService, and at that time the latest instance of 'reshardingFields' will be
     // read. Return no-op.
-    if (reshardingFields.getState() > CoordinatorStateEnum::kPreparingToDonate) {
+    if (reshardingFields.getState() != CoordinatorStateEnum::kPreparingToDonate) {
         return;
     }
 
